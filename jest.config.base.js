@@ -1,5 +1,7 @@
 // @ts-check
 
+const path = require('path')
+
 /** @type {jest.InitialOptions} */
 const config = {
   collectCoverage: true,
@@ -30,6 +32,8 @@ const config = {
       },
     },
   },
+
+  setupFiles: [path.join(__dirname, 'shared/dev/mockDate.js')],
 }
 
 module.exports = config
