@@ -1,4 +1,4 @@
-# Customer P0 retrospective: license expiration
+# Customer license expiration P0 retrospective
 
 ## Incident details
 
