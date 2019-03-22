@@ -12,6 +12,7 @@ import {
 import { fetchBlobContentLines } from '../../shared/repo/backend'
 import { toAbsoluteBlobURL } from '../../shared/util/url'
 import { CodeHost, CodeViewSpec, CodeViewSpecResolver, CodeViewSpecWithOutSelector } from '../code_intelligence'
+import { getSelectionsFromHash, observeSelectionsFromHash } from '../code_intelligence/util/selections'
 import { diffDomFunctions, searchCodeSnippetDOMFunctions, singleFileDOMFunctions } from './dom_functions'
 import { getCommandPaletteMount, getGlobalDebugMount } from './extensions'
 import { resolveDiffFileInfo, resolveFileInfo, resolveSnippetFileInfo } from './file_info'
@@ -42,6 +43,8 @@ const singleFileCodeView: CodeViewSpecWithOutSelector = {
     resolveFileInfo,
     toolbarButtonProps,
     isDiff: false,
+    getSelections: getSelectionsFromHash,
+    observeSelections: observeSelectionsFromHash,
 }
 
 /**

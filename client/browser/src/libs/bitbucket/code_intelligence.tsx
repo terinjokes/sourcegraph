@@ -2,6 +2,7 @@ import { AdjustmentDirection, DOMFunctions, PositionAdjuster } from '@sourcegrap
 import { of } from 'rxjs'
 import { FileSpec, RepoSpec, ResolvedRevSpec, RevSpec } from '../../../../../shared/src/util/url'
 import { CodeHost, CodeViewSpecResolver, CodeViewSpecWithOutSelector } from '../code_intelligence'
+import { getSelectionsFromHash, observeSelectionsFromHash } from '../code_intelligence/util/selections'
 import { diffDOMFunctions, singleFileDOMFunctions } from './dom_functions'
 import { resolveDiffFileInfo, resolveFileInfo } from './file_info'
 
@@ -67,6 +68,8 @@ const singleFileCodeView: CodeViewSpecWithOutSelector = {
         className: 'aui-button',
         style: { marginLeft: 10 },
     },
+    getSelections: getSelectionsFromHash,
+    observeSelections: observeSelectionsFromHash,
 }
 
 const diffCodeView: CodeViewSpecWithOutSelector = {

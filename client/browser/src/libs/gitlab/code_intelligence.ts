@@ -1,4 +1,5 @@
 import { CodeHost, CodeViewSpecResolver, CodeViewSpecWithOutSelector } from '../code_intelligence'
+import { getSelectionsFromHash, observeSelectionsFromHash } from '../code_intelligence/util/selections'
 import { diffDOMFunctions, singleFileDOMFunctions } from './dom_functions'
 import { getCommandPaletteMount } from './extensions'
 import { resolveCommitFileInfo, resolveDiffFileInfo, resolveFileInfo } from './file_info'
@@ -49,6 +50,8 @@ const singleFileCodeView: CodeViewSpecWithOutSelector = {
     getToolbarMount: createToolbarMount,
     resolveFileInfo,
     toolbarButtonProps,
+    getSelections: getSelectionsFromHash,
+    observeSelections: observeSelectionsFromHash,
 }
 
 const mergeRequestCodeView: CodeViewSpecWithOutSelector = {

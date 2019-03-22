@@ -10,21 +10,11 @@ import {
 } from '@sourcegraph/codeintellify'
 import { Selection } from '@sourcegraph/extension-api-types'
 import * as H from 'history'
-import { isEqual, uniqBy } from 'lodash'
+import { uniqBy } from 'lodash'
 import * as React from 'react'
 import { createPortal, render } from 'react-dom'
-import { animationFrameScheduler, EMPTY, fromEvent, Observable, of, Subject, Subscription } from 'rxjs'
-import {
-    catchError,
-    distinctUntilChanged,
-    filter,
-    map,
-    mergeMap,
-    observeOn,
-    startWith,
-    tap,
-    withLatestFrom,
-} from 'rxjs/operators'
+import { animationFrameScheduler, EMPTY, Observable, of, Subject, Subscription } from 'rxjs'
+import { catchError, filter, map, mergeMap, observeOn, tap, withLatestFrom } from 'rxjs/operators'
 import { registerHighlightContributions } from '../../../../../shared/src/highlight/contributions'
 
 import { ActionItemProps } from '../../../../../shared/src/actions/ActionItem'
@@ -40,8 +30,6 @@ import { TelemetryContext } from '../../../../../shared/src/telemetry/telemetryC
 import { propertyIsDefined } from '../../../../../shared/src/util/types'
 import {
     FileSpec,
-    lprToSelectionsZeroIndexed,
-    parseHash,
     PositionSpec,
     RepoSpec,
     ResolvedRevSpec,
@@ -99,6 +87,9 @@ export interface CodeViewSpec {
     toolbarButtonProps?: ButtonProps
 
     isDiff?: boolean
+
+    getSelections?: (codeViewElement: HTMLElement) => Selection[]
+    observeSelections?: (codeViewElement: HTMLElement) => Observable<Selection[]>
 }
 
 export type CodeViewSpecWithOutSelector = Pick<CodeViewSpec, Exclude<keyof CodeViewSpec, 'selector'>>
@@ -193,9 +184,6 @@ export interface CodeHost {
     urlToFile?: (
         location: RepoSpec & RevSpec & FileSpec & Partial<PositionSpec> & Partial<ViewStateSpec> & { part?: DiffPart }
     ) => string
-
-    /** Returns a stream representing the selections in the current code view */
-    selectionsChanges?: () => Observable<Selection[]>
 
     /** Optional classes for ActionNavItems, useful to customize the style of buttons contributed to the code view toolbar */
     actionNavItemClassProps?: ActionNavItemsClassProps
@@ -461,16 +449,6 @@ export function handleCodeHost({
         })
     )
 
-    // A stream of selections for the current code view. By default, selections
-    // are parsed from the location hash, but the codeHost can provide an alternative implementation.
-    const selectionsChanges: Observable<Selection[]> = codeHost.selectionsChanges
-        ? codeHost.selectionsChanges()
-        : fromEvent(window, 'hashchange').pipe(
-              map(() => lprToSelectionsZeroIndexed(parseHash(window.location.hash))),
-              distinctUntilChanged(isEqual),
-              startWith([])
-          )
-
     /** A stream of added or removed code views */
     const codeViews = mutations.pipe(
         trackCodeViews(codeHost),
@@ -508,20 +486,16 @@ export function handleCodeHost({
     /** Map from code view element to the state associated with it (to be updated or removed) */
     const codeViewStates = new Map<Element, CodeViewState>()
 
-    // Update model as selections change
-    subscriptions.add(
-        selectionsChanges.subscribe(selections => {
-            extensionsController.services.model.model.next({
-                ...extensionsController.services.model.model.value,
-                visibleViewComponents: [...codeViewStates.values()]
-                    .flatMap(state => state.visibleViewComponents)
-                    .map(visibleViewComponent => ({ ...visibleViewComponent, selections })),
-            })
+    const updateModel = () => {
+        // Apply added/removed roots/visibleViewComponents
+        extensionsController.services.model.model.next({
+            roots: uniqBy([...codeViewStates.values()].flatMap(state => state.roots), root => root.uri),
+            visibleViewComponents: [...codeViewStates.values()].flatMap(state => state.visibleViewComponents),
         })
-    )
+    }
 
     subscriptions.add(
-        codeViews.pipe(withLatestFrom(selectionsChanges)).subscribe(([codeViewEvent, selections]) => {
+        codeViews.subscribe(codeViewEvent => {
             // Handle added or removed view component, workspace root and subscriptions
             if (codeViewEvent.type === 'added' && !codeViewStates.has(codeViewEvent.codeViewElement)) {
                 const { codeViewElement, fileInfo, adjustPosition, getToolbarMount, toolbarButtonProps } = codeViewEvent
@@ -535,7 +509,9 @@ export function handleCodeHost({
                                 languageId: getModeFromPath(fileInfo.filePath) || 'could not determine mode',
                                 text: fileInfo.content,
                             },
-                            selections,
+                            selections: codeViewEvent.getSelections
+                                ? codeViewEvent.getSelections(codeViewEvent.codeViewElement)
+                                : [],
                             isActive: true,
                         },
                     ],
@@ -620,6 +596,20 @@ export function handleCodeHost({
                     })
                 )
 
+                if (codeViewEvent.observeSelections) {
+                    codeViewState.subscriptions.add(
+                        codeViewEvent.observeSelections(codeViewEvent.codeViewElement).subscribe(selections => {
+                            codeViewState.visibleViewComponents = codeViewState.visibleViewComponents.map(
+                                viewComponent => ({
+                                    ...viewComponent,
+                                    selections,
+                                })
+                            )
+                            updateModel()
+                        })
+                    )
+                }
+
                 codeViewElement.classList.add('sg-mounted')
 
                 // Render toolbar
@@ -647,11 +637,7 @@ export function handleCodeHost({
                 }
             }
 
-            // Apply added/removed roots/visibleViewComponents
-            extensionsController.services.model.model.next({
-                roots: uniqBy([...codeViewStates.values()].flatMap(state => state.roots), root => root.uri),
-                visibleViewComponents: [...codeViewStates.values()].flatMap(state => state.visibleViewComponents),
-            })
+            updateModel()
         })
     )
 
